@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, ArrowLeft, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar } from 'lucide-react';
 
 // --- 核心配置 (根据你的反馈调优) ---
 const ROWS = 3;             // 3行轨道，保证厚度
@@ -39,6 +39,21 @@ const PRIORITIES = {
 const generateId = () => Math.random().toString(36).substr(2, 9);
 const randomRange = (min, max) => Math.random() * (max - min) + min;
 
+// 简单的日期格式化
+const formatDeadline = (timestamp) => {
+  if (!timestamp) return null;
+  const date = new Date(timestamp);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const isTomorrow = new Date(now.setDate(now.getDate() + 1)).toDateString() === date.toDateString();
+  
+  const timeStr = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  
+  if (isToday) return `Today ${timeStr}`;
+  if (isTomorrow) return `Tomorrow ${timeStr}`;
+  return `${date.getMonth() + 1}/${date.getDate()} ${timeStr}`;
+};
+
 // 微小的随机扰动，让界面不那么死板，但绝不许乱飞
 const createJitter = () => ({
   rot: randomRange(-2, 2),       // 旋转更微小
@@ -64,6 +79,7 @@ const createSeedTasks = () => {
     completedAt: Date.now() - (100000 + i * 1000), // 添加完成时间用于排序
     jitter: createJitter(),
     priority: 'normal',
+    deadline: null, // Done 任务一般不显示 ddl 了，或者显示当时的 ddl
   }));
   const todos = todoTitles.map((text, i) => ({
     id: generateId(), 
@@ -72,6 +88,7 @@ const createSeedTasks = () => {
     createdAt: Date.now() - i * 1000, 
     jitter: createJitter(),
     priority: i % 3 === 0 ? 'urgent' : i % 2 === 0 ? 'focus' : 'normal', // 随机分配演示用
+    deadline: i % 2 === 0 ? Date.now() + (i + 1) * 3600000 : null, // 部分任务带 DDL 演示
   }));
 
   return [...dones, ...todos];
@@ -95,6 +112,8 @@ const SectorFinal = () => {
 
   const [inputValue, setInputValue] = useState('');
   const [inputPriority, setInputPriority] = useState('normal');
+  const [inputDeadline, setInputDeadline] = useState(''); // 存储 datetime-local 字符串
+  const dateInputRef = useRef(null);
 
   // 监听 tasks 变化，自动同步到 LocalStorage
   useEffect(() => {
@@ -194,9 +213,11 @@ const SectorFinal = () => {
       createdAt: Date.now(), 
       jitter: createJitter(),
       priority: inputPriority,
+      deadline: inputDeadline ? new Date(inputDeadline).getTime() : null,
     }]);
     setInputValue('');
     setInputPriority('normal'); // 重置
+    setInputDeadline('');
   };
 
   const removeTask = (id, e) => {
@@ -220,6 +241,10 @@ const SectorFinal = () => {
                 const pos = getPosition(task);
                 const isTodo = task.status === 'todo';
                 const priorityConfig = PRIORITIES[task.priority || 'normal']; // 获取优先级配置
+                
+                // 计算是否过期
+                const isOverdue = task.deadline && task.deadline < Date.now();
+                const ddlText = formatDeadline(task.deadline);
 
                 // --- 坐标转换：从极坐标 (angle, radius) 转为直角坐标 (x, y) ---
                 // 目的：让外层容器只负责位置 (不旋转)，从而保证 drag="x" 是屏幕水平方向
@@ -310,9 +335,20 @@ const SectorFinal = () => {
                         </div>
 
                         {/* 任务文本 */}
-                        <p className={`text-[15px] font-bold leading-snug break-words ${isTodo ? 'text-stone-800' : 'text-stone-400 line-through'}`}>
-                            {task.text}
-                        </p>
+                        <div className="flex-1 flex flex-col justify-center">
+                            <p className={`text-[15px] font-bold leading-snug break-words ${isTodo ? 'text-stone-800' : 'text-stone-400 line-through'}`}>
+                                {task.text}
+                            </p>
+                            
+                            {/* DDL 显示 */}
+                            {isTodo && ddlText && (
+                                <div className={`mt-2 flex items-center gap-1 text-[11px] font-medium ${isOverdue ? 'text-rose-500' : 'text-stone-400'}`}>
+                                    <Clock size={11} />
+                                    <span>{ddlText}</span>
+                                    {isOverdue && <span className="font-bold">!</span>}
+                                </div>
+                            )}
+                        </div>
 
                         {/* 底部提示 */}
                         <div className="flex items-center gap-1 text-[10px] font-mono text-stone-400 opacity-60">
@@ -361,12 +397,31 @@ const SectorFinal = () => {
         </div>
 
         <div className="relative group scale-100 focus-within:scale-105 transition-transform duration-300">
+            {/* DDL 触发器 (左侧) */}
+            <button
+                type="button"
+                onClick={() => dateInputRef.current?.showPicker()} 
+                className={`absolute left-3 top-3 p-2 rounded-xl transition-all ${inputDeadline ? 'text-blue-500 bg-blue-50' : 'text-stone-300 hover:text-stone-500 hover:bg-stone-100'}`}
+                title="Set Deadline"
+            >
+                <Calendar size={20} />
+            </button>
+
+            {/* 隐藏的原生日期选择器 */}
+            <input 
+                ref={dateInputRef}
+                type="datetime-local"
+                value={inputDeadline}
+                onChange={e => setInputDeadline(e.target.value)}
+                className="absolute opacity-0 w-0 h-0 overflow-hidden" 
+            />
+
             <input 
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
-                placeholder="New Plan..."
+                placeholder={inputDeadline ? `Due: ${formatDeadline(new Date(inputDeadline).getTime())}` : "New Plan..."}
                 className={`
-                    w-full bg-white/90 border-2 rounded-2xl py-4 px-6 pr-12 text-lg font-medium text-stone-800 placeholder:text-stone-300 shadow-2xl shadow-stone-200/50 outline-none 
+                    w-full bg-white/90 border-2 rounded-2xl py-4 pl-14 pr-12 text-lg font-medium text-stone-800 placeholder:text-stone-300 shadow-2xl shadow-stone-200/50 outline-none 
                     transition-colors duration-300
                     ${inputPriority === 'urgent' ? 'border-rose-200 focus:border-rose-400' : 
                       inputPriority === 'focus' ? 'border-blue-200 focus:border-blue-400' : 
