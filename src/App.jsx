@@ -1,307 +1,193 @@
-import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence, useMotionValue, useTransform, useAnimation } from 'framer-motion';
-import { Check, History, Sparkles, ChevronUp, ChevronRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Check, Plus, Trash2 } from 'lucide-react';
 
-// --- 布局配置参数 ---
-const PIVOT_DIST = 1500; // 屏幕底部到圆心的距离
-const ROW_GAP = 140;     // 每一行扇形之间的间距（半径差）
-const CARDS_PER_ROW = 5; // 每一行放多少张卡片
-const ANGLE_START = -12; // 历史记录的第一张卡片角度（偏左）
-const ANGLE_STEP = 10;   // 每张卡片之间的角度差
+// --- 配置参数 (核心调优区) ---
+const ROWS = 3;          // 【关键】设置有几行，3行能撑起你要的宽度
+const BASE_RADIUS = 500; // 最内层轨道的半径
+const ROW_STEP = 260;    // 每一层轨道之间的距离 (要大于卡片高度220，防止纵向重叠)
+const ANGLE_STEP = 16;   // 每一列之间的角度间隔 (要足够大，防止横向重叠)
+const GLOBAL_OFFSET = -50; // 【关键】全局往左旋转50度，把右边空出来
 
-// --- 颜色/紧急程度配置 ---
-const PRIORITIES = [
-  { id: 'urgent', color: '#EF4444', bg: 'bg-red-500', border: 'border-red-200', text: 'text-red-600', label: '紧急' },
-  { id: 'high', color: '#F97316', bg: 'bg-orange-500', border: 'border-orange-200', text: 'text-orange-600', label: '重要' },
-  { id: 'normal', color: '#3B82F6', bg: 'bg-blue-500', border: 'border-blue-200', text: 'text-blue-600', label: '日常' },
-  { id: 'low', color: '#10B981', bg: 'bg-emerald-500', border: 'border-emerald-200', text: 'text-emerald-600', label: '轻松' },
-];
+const CARD_W = 180;
+const CARD_H = 220;
 
-const TaskFlow = () => {
-  // 状态管理
-  const [history, setHistory] = useState([
-    { id: 'h1', text: '晨间冥想', completedAt: new Date(), priority: 'low' },
-    { id: 'h2', text: '项目进度汇报 PPT', completedAt: new Date(), priority: 'urgent' },
-    { id: 'h3', text: '阅读设计心理学', completedAt: new Date(), priority: 'normal' },
-    { id: 'h4', text: '整理桌面', completedAt: new Date(), priority: 'low' },
-    { id: 'h5', text: '回复客户邮件', completedAt: new Date(), priority: 'high' },
-    { id: 'h6', text: '健身房打卡', completedAt: new Date(), priority: 'normal' },
-  ]);
+// --- 辅助函数 ---
+const generateId = () => Math.random().toString(36).substr(2, 9);
+const randomRange = (min, max) => Math.random() * (max - min) + min;
+
+// 生成随机“扰动”，让它不整齐
+// 包含旋转、水平(X轴即角度方向)、垂直(Y轴即半径方向)的微调
+const createJitter = () => ({
+  rot: randomRange(-3, 3),  // 随机歪斜 +/- 3度
+  offsetX: randomRange(-5, 5), // 沿弧线随机偏移
+  offsetY: randomRange(-10, 10), // 沿半径随机偏移
+});
+
+// --- 初始数据 ---
+const createSeedTasks = () => {
+  // 故意多搞点数据，撑满界面看看效果
+  const doneTitles = ['晨间冥想', '整理桌面', '查阅文献', '备份数据', '回复邮件', '支付账单'];
+  const todoTitles = ['设计首页 UI', '阅读《认知觉醒》', '修复 Bug', '准备 PPT', '超市采购', '预约牙医', '洗衣服', '写周报', '规划下周'];
   
-  const [currentTask, setCurrentTask] = useState({
-    id: 'c-init',
-    text: '',
-    createdAt: new Date(),
-    priority: 'normal'
-  });
+  const dones = doneTitles.map((text, i) => ({
+    id: generateId(), text, status: 'done', createdAt: Date.now() - (100000 + i * 1000), jitter: createJitter(),
+  }));
 
-  const generateId = () => Math.random().toString(36).substr(2, 9);
+  const todos = todoTitles.map((text, i) => ({
+    id: generateId(), text, status: 'todo', createdAt: Date.now() - i * 1000, jitter: createJitter(),
+  }));
 
-  const handleComplete = () => {
-    if (!currentTask.text.trim()) return;
+  // 重要：把 Done 放前面，Todo 放后面，形成连续的流
+  return [...dones, ...todos];
+};
 
-    const completedTask = { ...currentTask, completedAt: new Date() };
-    // 新完成的任务加入历史头部 (index 0)
-    setHistory(prev => [completedTask, ...prev]);
+const SectorMultiRow = () => {
+  const [tasks, setTasks] = useState(createSeedTasks);
+  const [inputValue, setInputValue] = useState('');
 
-    // 重置当前任务
-    setCurrentTask({
-      id: generateId(),
-      text: '',
-      createdAt: new Date(),
-      priority: 'normal'
+  // --- 核心布局算法 (Grid to Polar Mapping) ---
+  const getTaskLayout = (index) => {
+    // 1. 计算网格坐标 (Column & Row)
+    // col 代表第几列（扇区切片）
+    const col = Math.floor(index / ROWS); 
+    // row 代表第几行（轨道），取模运算实现循环填充 (0, 1, 2, 0, 1, 2...)
+    // 这里用 ROWS - 1 - (index % ROWS) 是为了让第一个元素在最外层，视觉上更符合直觉（可选）
+    const row = index % ROWS;
+
+    // 2. 映射到极坐标 (Angle & Radius)
+    // 角度 = 全局左移 + 列数 * 每列间隔
+    const baseAngle = GLOBAL_OFFSET + (col * ANGLE_STEP);
+    // 半径 = 基础半径 + 行数 * 每行间距
+    const baseRadius = BASE_RADIUS + (row * ROW_STEP);
+
+    // 3. 计算层级 (Z-Index)
+    // 确保后面的不挡前面的，下层的不挡上层的。简单用 index 即可，因为我们预留了足够间距。
+    const zIndex = index; 
+
+    return {
+      angle: baseAngle,
+      radius: baseRadius,
+      zIndex,
+      // 已完成的任务稍微淡一点，区分度
+      opacity: tasks[index].status === 'done' ? 0.85 : 1,
+      scale: tasks[index].status === 'done' ? 0.95 : 1,
+    };
+  };
+
+  // --- 交互 ---
+  const addTask = (e) => {
+    e.preventDefault();
+    if (!inputValue.trim()) return;
+    setTasks(prev => [...prev, { // 新任务加到最后
+      id: generateId(), text: inputValue, status: 'todo', createdAt: Date.now(), jitter: createJitter(),
+    }]);
+    setInputValue('');
+  };
+
+  const toggleTask = (id) => {
+    setTasks(prev => {
+        const newList = prev.map(t => 
+            t.id === id 
+            ? { ...t, status: t.status === 'todo' ? 'done' : 'todo', jitter: createJitter() } 
+            : t
+        );
+        // 重新排序：Done的在左边，Todo的在右边，保持流转顺序
+        const dones = newList.filter(t => t.status === 'done');
+        const todos = newList.filter(t => t.status === 'todo');
+        return [...dones, ...todos];
     });
   };
 
-  const handleRestore = (task) => {
-    if(!currentTask.text) {
-        setCurrentTask({ ...task, id: generateId() });
-        setHistory(prev => prev.filter(t => t.id !== task.id));
-    }
-  };
-
-  /**
-   * 核心布局算法：计算历史卡片位置
-   * 采用“贪吃蛇”式的填充逻辑，或者简单的多行左滑逻辑
-   */
-  const getCardStyle = (index) => {
-    // 0 -> Row 0, Col 0
-    // 4 -> Row 0, Col 4
-    // 5 -> Row 1, Col 0 (换行)
-    const row = Math.floor(index / CARDS_PER_ROW);
-    const col = index % CARDS_PER_ROW;
-
-    // 角度向左递增 (负值更大)
-    const angle = ANGLE_START - (col * ANGLE_STEP);
-    
-    // 半径随行数增加 (离屏幕底部更远/更高)
-    // 为了保持同心圆效果，我们需要调整 bottom 位置和 transformOrigin
-    const yOffset = -1 * (row * ROW_GAP); 
-    const originDistance = PIVOT_DIST + (row * ROW_GAP);
-
-    return { angle, yOffset, originDistance, row, col };
+  const removeTask = (id, e) => {
+    e.stopPropagation();
+    setTasks(prev => prev.filter(t => t.id !== id));
   };
 
   return (
-    <div className="relative w-full h-screen overflow-hidden bg-[#F2F0E9] text-stone-800 font-sans selection:bg-orange-100">
-      {/* 装饰：同心圆轨迹线 */}
-      <div className="absolute inset-0 pointer-events-none flex justify-center items-end overflow-hidden">
-        {/* 绘制几条淡淡的轨道线，暗示扇形结构 */}
-        {[0, 1, 2].map(i => (
-            <div 
-                key={i}
-                className="absolute border border-stone-300/30 rounded-full"
-                style={{
-                    width: (PIVOT_DIST + i * ROW_GAP) * 2,
-                    height: (PIVOT_DIST + i * ROW_GAP) * 2,
-                    bottom: -(PIVOT_DIST + i * ROW_GAP),
-                }}
+    <div className="relative w-full h-screen bg-[#F2F0E9] overflow-hidden flex flex-col items-center font-sans text-stone-700">
+      <div className="absolute top-10 z-10 text-center opacity-40 select-none">
+        <h1 className="text-sm font-bold tracking-[0.4em] uppercase">Sector Grid</h1>
+      </div>
+
+      {/* --- 扇形容器 --- */}
+      {/* bottom往下降，把圆心藏深一点 */}
+      <div className="absolute w-full flex justify-center pointer-events-none" style={{ bottom: '-200px' }}>
+        <div className="relative" style={{ width: 0, height: 0 }}>
+            <AnimatePresence mode='popLayout'>
+            {tasks.map((task, index) => {
+                const layout = getTaskLayout(index);
+                const isTodo = task.status === 'todo';
+
+                // 最终角度 = 布局角度 + 随机旋转扰动
+                const finalAngle = layout.angle + task.jitter.rot;
+                // 最终半径推移 Y = 负半径 + 随机半径扰动
+                const finalTranslateY = -layout.radius + task.jitter.offsetY;
+                // 最终横向推移 X = 随机横向扰动 (稍微错开一点点)
+                const finalTranslateX = task.jitter.offsetX;
+
+                return (
+                <motion.div
+                    layoutId={task.id}
+                    key={task.id}
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ 
+                        opacity: layout.opacity,
+                        scale: layout.scale,
+                        rotate: finalAngle, 
+                        y: finalTranslateY,
+                        x: finalTranslateX,
+                    }}
+                    exit={{ opacity: 0, scale: 0, transition: { duration: 0.2 } }}
+                    transition={{ type: "spring", stiffness: 140, damping: 22, mass: 1 }}
+                    className="absolute pointer-events-auto cursor-pointer"
+                    style={{
+                        // 旋转轴心设置在很远的圆心处
+                        transformOrigin: `50% ${layout.radius + CARD_H/2 - task.jitter.offsetY}px`,
+                        left: -CARD_W / 2, 
+                        top: -CARD_H / 2,
+                        zIndex: layout.zIndex,
+                    }}
+                    onClick={() => toggleTask(task.id)}
+                >
+                    <div 
+                        className={`
+                            relative w-[180px] h-[220px] rounded-2xl p-6 flex flex-col justify-between 
+                            transition-all duration-300 border backdrop-blur-sm
+                            ${isTodo 
+                                ? 'bg-white shadow-lg shadow-stone-200/40 border-white hover:-translate-y-1 hover:shadow-xl' 
+                                : 'bg-stone-100/80 border-stone-200/50 grayscale-[0.3] hover:grayscale-0'
+                            }
+                        `}
+                    >
+                        <div className="flex justify-between items-start">
+                            <div className={`w-2.5 h-2.5 rounded-full ${isTodo ? 'bg-orange-400' : 'bg-stone-300'}`} />
+                            {isTodo && <button onClick={(e) => removeTask(task.id, e)} className="text-stone-300 hover:text-red-400"><Trash2 size={14} /></button>}
+                        </div>
+                        <p className={`text-[15px] font-bold leading-snug break-words ${isTodo ? 'text-stone-800' : 'text-stone-500 line-through'}`}>{task.text}</p>
+                        <div className="text-[10px] font-mono text-stone-400">{isTodo ? 'TAP TO DONE' : 'ARCHIVED'}</div>
+                    </div>
+                </motion.div>
+                );
+            })}
+            </AnimatePresence>
+        </div>
+      </div>
+
+      {/* --- 底部输入框 --- */}
+      <form onSubmit={addTask} className="absolute bottom-10 z-50 w-full max-w-sm px-6">
+        <div className="relative group scale-100 focus-within:scale-105 transition-transform duration-300">
+            <input 
+                value={inputValue}
+                onChange={e => setInputValue(e.target.value)}
+                placeholder="Add new task..."
+                className="w-full bg-white/90 border border-stone-100 rounded-2xl py-4 px-6 pr-12 text-lg font-medium text-stone-800 placeholder:text-stone-300 shadow-2xl shadow-stone-200/50 outline-none focus:ring-2 focus:ring-orange-200"
             />
-        ))}
-        {/* 背景光 */}
-        <div className="absolute top-0 left-0 w-full h-64 bg-gradient-to-b from-white/60 to-transparent" />
-      </div>
-
-      <header className="absolute top-8 left-0 w-full flex justify-center z-10 opacity-60">
-        <div className="flex items-center space-x-2 text-stone-500 tracking-widest uppercase text-xs font-semibold">
-          <Sparkles size={14} />
-          <span>Task Radar</span>
+            <button type="submit" disabled={!inputValue} className="absolute right-3 top-3 p-2 bg-stone-800 text-white rounded-xl hover:bg-black disabled:opacity-20 transition-all"><Plus size={20} /></button>
         </div>
-      </header>
-
-      {/* 核心交互区域 */}
-      <div className="absolute bottom-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="relative w-full h-full flex justify-center items-end">
-            
-            <div className="relative w-0 h-0 flex justify-center items-center pointer-events-auto">
-
-                <AnimatePresence mode='popLayout'>
-                    {/* --- 历史卡片 --- */}
-                    {history.map((task, index) => {
-                        const style = getCardStyle(index);
-                        // 只显示前 3 行，避免太乱
-                        if (style.row > 2) return null;
-
-                        return (
-                            <HistoryCard 
-                                key={task.id} 
-                                task={task} 
-                                styleConfig={style}
-                                onClick={() => handleRestore(task)}
-                            />
-                        );
-                    })}
-                </AnimatePresence>
-
-                {/* --- 当前任务卡片 --- */}
-                <CurrentCard 
-                    key={currentTask.id}
-                    task={currentTask} 
-                    setTask={setCurrentTask}
-                    onComplete={handleComplete}
-                />
-
-            </div>
-        </div>
-      </div>
+      </form>
     </div>
   );
 };
 
-// --- 子组件：当前任务卡片 ---
-const CurrentCard = ({ task, setTask, onComplete }) => {
-  const x = useMotionValue(0);
-  const rotate = useTransform(x, [-200, 0, 200], [-10, 0, 10]);
-  const opacity = useTransform(x, [-300, -100, 0], [0, 0.5, 1]);
-  const controls = useAnimation();
-  
-  const currentPriority = PRIORITIES.find(p => p.id === task.priority) || PRIORITIES[2];
-
-  const handleDragEnd = (event, info) => {
-    // 增加向左拖拽完成的逻辑 (x < -100)，同时也保留向上拖拽 (y < -100)
-    if (info.offset.x < -100 || info.offset.y < -100) {
-      onComplete();
-    } else {
-      controls.start({ x: 0, y: 0 });
-    }
-  };
-
-  return (
-    <motion.div
-      className="absolute"
-      style={{
-        transformOrigin: `50% ${PIVOT_DIST}px`, 
-        bottom: 0, 
-        x,
-        rotate,
-        opacity,
-        zIndex: 100
-      }}
-      initial={{ x: 300, opacity: 0, rotate: 20 }} // 从右侧滑入
-      animate={{ x: 0, opacity: 1, rotate: 0 }}    // 归位
-      exit={{ 
-        x: -200, // 向左滑出，配合 rotate 形成圆弧运动感
-        rotate: -15, 
-        opacity: 0, 
-        transition: { duration: 0.3 } 
-      }}
-      transition={{ type: "spring", stiffness: 280, damping: 24 }}
-      drag
-      dragConstraints={{ left: 0, right: 0, top: 0, bottom: 0 }}
-      dragElastic={0.2}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="relative -top-[120px] sm:-top-[160px]"> 
-        <div className={`w-[85vw] max-w-[320px] aspect-[5/6] bg-white rounded-[2rem] shadow-2xl shadow-stone-300/60 flex flex-col p-6 transition-colors duration-500 border-[3px] ${currentPriority.border}`}>
-          
-          {/* 优先级选择 */}
-          <div className="flex justify-between items-center mb-6">
-            <span className="text-[10px] font-bold tracking-widest text-stone-400 uppercase">Current Focus</span>
-            <div className="flex gap-1 bg-stone-50 p-1.5 rounded-full border border-stone-100">
-              {PRIORITIES.map((p) => (
-                <button
-                  key={p.id}
-                  onClick={() => setTask(prev => ({ ...prev, priority: p.id }))}
-                  className={`w-3.5 h-3.5 rounded-full transition-all duration-300 ${p.bg} ${
-                    task.priority === p.id ? 'scale-125 ring-2 ring-offset-1 ring-stone-300' : 'opacity-30 hover:opacity-100'
-                  }`}
-                />
-              ))}
-            </div>
-          </div>
-
-          <div className="flex-1 flex flex-col justify-center">
-             <textarea
-              value={task.text}
-              onChange={(e) => setTask(prev => ({ ...prev, text: e.target.value }))}
-              placeholder="What's next?"
-              className={`w-full bg-transparent resize-none text-3xl font-semibold text-stone-800 placeholder:text-stone-200 text-center outline-none`}
-              onPointerDown={(e) => e.stopPropagation()} 
-              autoFocus
-            />
-          </div>
-
-          <div className="mt-4 flex flex-col items-center gap-2 text-stone-300">
-             <div className="flex items-center text-xs animate-pulse space-x-1">
-                <ChevronUp size={14} />
-                <span>Drag to Complete</span>
-             </div>
-          </div>
-        </div>
-        
-        {/* 高优光晕 */}
-        {task.priority === 'urgent' && (
-            <div className="absolute inset-0 bg-red-500/10 blur-3xl -z-10 rounded-full" />
-        )}
-      </div>
-    </motion.div>
-  );
-};
-
-// --- 子组件：历史任务卡片 ---
-const HistoryCard = React.forwardRef(({ task, styleConfig, onClick }, ref) => {
-  const priorityConfig = PRIORITIES.find(p => p.id === task.priority) || PRIORITIES[2];
-
-  return (
-    <motion.div
-      ref={ref}
-      className="absolute bottom-0 cursor-pointer"
-      // 初始状态：假装自己在 Current 位置 (0度, Row 0)
-      initial={{ 
-        rotate: 0, 
-        y: 0, 
-        scale: 1,
-        opacity: 0.8 
-      }} 
-      animate={{ 
-        rotate: styleConfig.angle, 
-        y: styleConfig.yOffset, // 向上移动到对应的轨道
-        scale: 1 - (styleConfig.row * 0.1) - (styleConfig.col * 0.02), // 稍微变小一点
-        opacity: 1,
-        filter: styleConfig.row > 0 ? 'blur(1px)' : 'none', // 后排稍微虚化
-      }}
-      transition={{ 
-        type: "spring", 
-        stiffness: 180, 
-        damping: 24,
-      }}
-      style={{
-        // 关键：动态改变旋转中心，确保同心圆效果
-        // 原始 Pivot 是 1500。如果卡片向上移了 140 (yOffset = -140)，
-        // 那么相对该卡片的 Pivot 应该变成 1500 + 140 = 1640。
-        transformOrigin: `50% ${styleConfig.originDistance}px`, 
-        zIndex: 50 - styleConfig.row * 10 - styleConfig.col, 
-        left: 0, // 确保居中定位
-        right: 0,
-        margin: '0 auto',
-        width: 0, // 容器宽0，内容靠 overflow visible 显示，保证精准定位
-      }}
-      onClick={onClick}
-    >
-       {/* 内容容器 */}
-       <div className="relative -top-[120px] sm:-top-[160px] -left-[110px]"> {/* 左移一半宽度以居中 */}
-          <div className={`w-[220px] aspect-square rounded-3xl shadow-lg border-2 ${priorityConfig.border} p-5 flex flex-col justify-between transition-all hover:scale-105 hover:shadow-xl bg-white/95 backdrop-blur-sm`}>
-            
-            <div className="flex justify-between items-start">
-                 <div className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${priorityConfig.bg} text-white`}>
-                    {priorityConfig.label}
-                 </div>
-                 <span className="text-[10px] text-stone-400">{new Date(task.completedAt).getHours()}:{String(new Date(task.completedAt).getMinutes()).padStart(2,'0')}</span>
-            </div>
-
-            <p className={`text-sm font-medium leading-relaxed line-clamp-3 text-stone-600`}>
-                {task.text}
-            </p>
-            
-            {task.priority === 'urgent' && (
-                <div className="absolute -bottom-2 -right-2 p-4 opacity-10 rotate-12">
-                    <Sparkles className="text-red-500 w-12 h-12" />
-                </div>
-            )}
-          </div>
-       </div>
-    </motion.div>
-  );
-});
-
-export default TaskFlow;
+export default SectorMultiRow;
