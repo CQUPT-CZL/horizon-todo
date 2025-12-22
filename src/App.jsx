@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, ArrowLeft, RotateCcw } from 'lucide-react';
 
@@ -11,6 +11,29 @@ const MAX_DONE_COLUMNS = 6; // 最多显示几列已完成任务，防止溢出�
 
 const CARD_W = 180;
 const CARD_H = 220;
+
+const PRIORITIES = {
+  urgent: { 
+    label: 'Urgent', 
+    color: 'bg-rose-100 border-rose-200', 
+    dot: 'bg-rose-500',
+    // 显式定义按钮样式，防止自动计算导致的对比度问题
+    btnActive: 'bg-rose-100 text-rose-600 ring-rose-500'
+  },
+  focus:  { 
+    label: 'Focus',  
+    color: 'bg-blue-100 border-blue-200', 
+    dot: 'bg-blue-500',
+    btnActive: 'bg-blue-100 text-blue-600 ring-blue-500'
+  },
+  normal: { 
+    label: 'Normal', 
+    color: 'bg-white border-white',       
+    dot: 'bg-orange-400', 
+    // 这里专门用 text-orange-600 加深文字颜色，背景用 100 变淡
+    btnActive: 'bg-orange-100 text-orange-600 ring-orange-400'
+  },
+};
 
 // --- 辅助工具 ---
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -40,6 +63,7 @@ const createSeedTasks = () => {
     createdAt: Date.now() - (100000 + i * 1000), 
     completedAt: Date.now() - (100000 + i * 1000), // 添加完成时间用于排序
     jitter: createJitter(),
+    priority: 'normal',
   }));
   const todos = todoTitles.map((text, i) => ({
     id: generateId(), 
@@ -47,14 +71,35 @@ const createSeedTasks = () => {
     status: 'todo', 
     createdAt: Date.now() - i * 1000, 
     jitter: createJitter(),
+    priority: i % 3 === 0 ? 'urgent' : i % 2 === 0 ? 'focus' : 'normal', // 随机分配演示用
   }));
 
   return [...dones, ...todos];
 };
 
+const STORAGE_KEY = 'horizon_todo_data_v1';
+
 const SectorFinal = () => {
-  const [tasks, setTasks] = useState(createSeedTasks);
+  // 初始化状态：尝试从 LocalStorage 读取，如果没有则使用种子数据
+  const [tasks, setTasks] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load tasks from localStorage:', e);
+    }
+    return createSeedTasks();
+  });
+
   const [inputValue, setInputValue] = useState('');
+  const [inputPriority, setInputPriority] = useState('normal');
+
+  // 监听 tasks 变化，自动同步到 LocalStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+  }, [tasks]);
 
   // 分离数据并排序
   // Done: 按完成时间倒序 (最近完成的在最前面/最中心)
@@ -148,8 +193,10 @@ const SectorFinal = () => {
       status: 'todo', 
       createdAt: Date.now(), 
       jitter: createJitter(),
+      priority: inputPriority,
     }]);
     setInputValue('');
+    setInputPriority('normal'); // 重置
   };
 
   const removeTask = (id, e) => {
@@ -172,6 +219,7 @@ const SectorFinal = () => {
             {[...dones, ...todos].map((task) => {
                 const pos = getPosition(task);
                 const isTodo = task.status === 'todo';
+                const priorityConfig = PRIORITIES[task.priority || 'normal']; // 获取优先级配置
 
                 // --- 坐标转换：从极坐标 (angle, radius) 转为直角坐标 (x, y) ---
                 // 目的：让外层容器只负责位置 (不旋转)，从而保证 drag="x" 是屏幕水平方向
@@ -242,14 +290,14 @@ const SectorFinal = () => {
                             relative w-[180px] h-[220px] rounded-2xl p-6 flex flex-col justify-between 
                             transition-all duration-300 border backdrop-blur-sm select-none
                             ${isTodo 
-                                ? 'bg-white shadow-lg shadow-stone-200/50 border-white' 
+                                ? `${priorityConfig.color} shadow-lg shadow-stone-200/50` 
                                 : 'bg-stone-200/40 border-stone-200/20 grayscale'
                             }
                         `}
                     >
                         {/* 顶部按钮区 */}
                         <div className="flex justify-between items-start">
-                            <div className={`w-2.5 h-2.5 rounded-full ${isTodo ? 'bg-orange-400' : 'bg-stone-300'}`} />
+                            <div className={`w-2.5 h-2.5 rounded-full ${isTodo ? priorityConfig.dot : 'bg-stone-300'}`} />
                             {isTodo && (
                                 <button 
                                     onPointerDown={(e) => e.stopPropagation()}
@@ -290,13 +338,40 @@ const SectorFinal = () => {
       </div>
 
       {/* --- 底部输入框 --- */}
-      <form onSubmit={addTask} className="absolute bottom-10 z-50 w-full max-w-sm px-6">
+      <form onSubmit={addTask} className="absolute bottom-10 z-50 w-full max-w-sm px-6 flex flex-col gap-3">
+        
+        {/* 优先级选择器 */}
+        <div className="flex justify-center gap-3">
+          {Object.entries(PRIORITIES).map(([key, config]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setInputPriority(key)}
+              className={`
+                px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all
+                ${inputPriority === key 
+                  ? `${config.btnActive} ring-2`
+                  : 'bg-white/50 text-stone-400 hover:bg-white'
+                }
+              `}
+            >
+              {config.label}
+            </button>
+          ))}
+        </div>
+
         <div className="relative group scale-100 focus-within:scale-105 transition-transform duration-300">
             <input 
                 value={inputValue}
                 onChange={e => setInputValue(e.target.value)}
                 placeholder="New Plan..."
-                className="w-full bg-white/90 border border-stone-100 rounded-2xl py-4 px-6 pr-12 text-lg font-medium text-stone-800 placeholder:text-stone-300 shadow-2xl shadow-stone-200/50 outline-none focus:ring-2 focus:ring-orange-200"
+                className={`
+                    w-full bg-white/90 border-2 rounded-2xl py-4 px-6 pr-12 text-lg font-medium text-stone-800 placeholder:text-stone-300 shadow-2xl shadow-stone-200/50 outline-none 
+                    transition-colors duration-300
+                    ${inputPriority === 'urgent' ? 'border-rose-200 focus:border-rose-400' : 
+                      inputPriority === 'focus' ? 'border-blue-200 focus:border-blue-400' : 
+                      'border-stone-100 focus:border-orange-200'}
+                `}
             />
             <button type="submit" disabled={!inputValue} className="absolute right-3 top-3 p-2 bg-stone-800 text-white rounded-xl hover:bg-black disabled:opacity-20 transition-all"><Plus size={20} /></button>
         </div>
