@@ -5,16 +5,9 @@ import { Plus, Trash2, ArrowLeft, RotateCcw } from 'lucide-react';
 // --- 核心配置 (根据你的反馈调优) ---
 const ROWS = 3;             // 3行轨道，保证厚度
 const ROW_HEIGHT = 280;     // 行高 (大幅增加，彻底解决纵向堆叠)
-const COL_ANGLE = 26;       // 列宽 (角度)，大幅增加，解决横向挤压
+const ARC_SPACING = 240;    // 弧长间距 (卡片宽度+间隙)，用于动态计算角度
 const BASE_RADIUS = 520;    // 内圈半径，拉大半径让扇形更平缓，空间更大
-const MAX_DONE_COLUMNS = 3; // 最多显示几列已完成任务，防止溢出屏幕或重叠
-
-// 全局位置修正：
-// 让 Todo 第一列 (0) 和 Done 第一列 (-1) 对称分布在屏幕中心
-// Todo Start Angle = OFFSET
-// Done Start Angle = OFFSET - COL_ANGLE
-// Center = 0 => OFFSET = COL_ANGLE / 2
-const GLOBAL_ANGLE_OFFSET = 13; 
+const MAX_DONE_COLUMNS = 6; // 最多显示几列已完成任务，防止溢出屏幕或重叠
 
 const CARD_W = 180;
 const CARD_H = 220;
@@ -25,9 +18,13 @@ const randomRange = (min, max) => Math.random() * (max - min) + min;
 
 // 微小的随机扰动，让界面不那么死板，但绝不许乱飞
 const createJitter = () => ({
-  rot: randomRange(-3, 3),      // 旋转 +/- 3度
-  x: randomRange(-4, 4),        // 横向微调
-  y: randomRange(-8, 8),        // 纵向微调
+  rot: randomRange(-2, 2),       // 旋转更微小
+  x: randomRange(-3, 3),         // 横向更微小
+  y: randomRange(-3, 3),         // 纵向更微小
+  // 悬浮动画参数 (呼吸感)
+  floatDuration: randomRange(5, 8), // 浮动周期 5-8秒
+  floatDelay: randomRange(0, 5),    // 随机延迟
+  floatY: randomRange(4, 8),        // 浮动幅度
 });
 
 // --- 初始数据 ---
@@ -94,11 +91,17 @@ const SectorFinal = () => {
     }
 
     // --- 坐标映射 ---
-    // 1. 计算角度：基础偏移 + (列号 * 列宽)
-    const angle = GLOBAL_ANGLE_OFFSET + (colIndex * COL_ANGLE);
-
     // 2. 计算半径：基础半径 + (行号 * 行高)
     const radius = BASE_RADIUS + (rowIndex * ROW_HEIGHT);
+
+    // 1. 计算角度：根据半径动态计算 step，保证每一行的视觉间距一致 (外层更紧凑)
+    // ArcLength = Radius * Angle(rad) => Angle(deg) = (ArcLength / Radius) * (180/PI)
+    const angleStep = (ARC_SPACING / radius) * (180 / Math.PI);
+    
+    // 修正：让 Todo 和 Done 对称分布
+    // Todo (col 0) start at +step/2
+    // Done (col -1) start at -step/2
+    const angle = (colIndex * angleStep) + (angleStep / 2);
 
     // 3. 计算层级：
     // Todo: 越靠左(越近)层级越高
@@ -217,13 +220,22 @@ const SectorFinal = () => {
                     // 点击已完成的可以恢复
                     onClick={() => !isTodo && toggleTaskStatus(task.id)}
                 >
-                    {/* 内层容器：负责旋转 */}
+                    {/* 内层容器：负责旋转 + 悬浮 */}
                     <motion.div 
                         className="w-full h-full"
                         animate={{ 
                             rotate: pos.angle + task.jitter.rot,
+                            y: [0, -(task.jitter.floatY || 5), 0], // 呼吸悬浮 (缺省值防止旧数据报错)
                         }}
-                        transition={{ type: "spring", stiffness: 140, damping: 20 }}
+                        transition={{ 
+                            rotate: { type: "spring", stiffness: 140, damping: 20 },
+                            y: { 
+                                duration: task.jitter.floatDuration || 6, 
+                                repeat: Infinity, 
+                                ease: "easeInOut",
+                                delay: task.jitter.floatDelay || 0
+                            }
+                        }}
                     >
                     <div 
                         className={`
