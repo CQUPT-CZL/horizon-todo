@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar, Github } from 'lucide-react';
 
 // --- 核心配置 (根据你的反馈调优) ---
 const ROWS = 3;             // 3行轨道，保证厚度
@@ -123,6 +123,7 @@ const SectorFinal = () => {
   const [inputValue, setInputValue] = useState('');
   const [inputPriority, setInputPriority] = useState('normal');
   const [inputDeadline, setInputDeadline] = useState(''); // 存储 datetime-local 字符串
+  const [showResetConfirm, setShowResetConfirm] = useState(false); // 控制重置确认弹窗
   const dateInputRef = useRef(null);
 
   // 监听 tasks 变化，自动同步到 LocalStorage
@@ -235,11 +236,41 @@ const SectorFinal = () => {
     setTasks(prev => prev.filter(t => t.id !== id));
   };
 
+  const handleReset = () => {
+    setShowResetConfirm(true);
+  };
+
+  const confirmReset = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    setTasks(createSeedTasks());
+    setShowResetConfirm(false);
+  };
+
   return (
     <div className="relative w-full h-screen bg-[#F2F0E9] overflow-hidden flex flex-col items-center font-sans text-stone-700">
       
       <div className="absolute top-10 z-10 text-center opacity-40 select-none">
         <h1 className="text-sm font-bold tracking-[0.4em] uppercase">horizon-todo</h1>
+      </div>
+
+      {/* --- 右上角功能区 --- */}
+      <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
+        <a 
+          href="https://github.com/CQUPT-CZL/horizon-todo" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="text-stone-400 hover:text-stone-800 transition-colors"
+          title="GitHub Repo"
+        >
+          <Github size={20} />
+        </a>
+        <button 
+          onClick={handleReset} 
+          className="text-stone-400 hover:text-red-500 transition-colors" 
+          title="Reset Data"
+        >
+           <RotateCcw size={20} />
+        </button>
       </div>
 
       {/* --- 扇形容器 --- */}
@@ -441,6 +472,59 @@ const SectorFinal = () => {
             <button type="submit" disabled={!inputValue} className="absolute right-3 top-3 p-2 bg-stone-800 text-white rounded-xl hover:bg-black disabled:opacity-20 transition-all"><Plus size={20} /></button>
         </div>
       </form>
+
+      {/* --- 自定义重置确认弹窗 --- */}
+      <AnimatePresence>
+        {showResetConfirm && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+            {/* 遮罩层 */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowResetConfirm(false)}
+              className="absolute inset-0 bg-stone-900/20 backdrop-blur-sm"
+            />
+            
+            {/* 弹窗内容 */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6 overflow-hidden"
+            >
+               <div className="flex flex-col items-center text-center gap-4">
+                  <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-500">
+                    <RotateCcw size={24} />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <h3 className="text-lg font-bold text-stone-800">Confirm Reset?</h3>
+                    <p className="text-sm text-stone-500 leading-relaxed">
+                      This will clear all your tasks and restore the initial guide. <br/>
+                      <span className="text-rose-500 font-medium">This action cannot be undone.</span>
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 w-full mt-2">
+                    <button 
+                      onClick={() => setShowResetConfirm(false)}
+                      className="py-3 px-4 rounded-xl bg-stone-100 text-stone-600 font-bold text-sm hover:bg-stone-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button 
+                      onClick={confirmReset}
+                      className="py-3 px-4 rounded-xl bg-rose-500 text-white font-bold text-sm hover:bg-rose-600 shadow-lg shadow-rose-200 transition-all active:scale-95"
+                    >
+                      Yes, Reset
+                    </button>
+                  </div>
+               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
