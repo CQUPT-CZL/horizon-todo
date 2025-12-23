@@ -135,9 +135,11 @@ const SectorFinal = () => {
   // 监听窗口大小变化，动态计算缩放比例
   useEffect(() => {
     const handleResize = () => {
-      // 基准高度 900px (常见笔记本高度减去浏览器栏)
-      // 设置最小缩放 0.8，最大 1.5，避免极端情况
-      const scale = Math.min(Math.max(window.innerHeight / 900, 0.8), 1.5);
+      // 基准高度调整为 1250px (保证内容能完整放入屏幕并留有余地)
+      // 计算公式：屏幕高度 / 内容所需总高度
+      // 内容总高度约 = 1080(最外层半径) - 180(圆心下沉) + 110(卡片半高) + 150(顶部留白) ≈ 1160px
+      // 这里的 1250 是一个舒适值，让上下都有空隙
+      const scale = Math.min(Math.max(window.innerHeight / 1250, 0.55), 1.2);
       setLayoutScale(scale);
     };
     
