@@ -67,8 +67,16 @@ const createJitter = () => ({
 
 // --- 初始数据 ---
 const createSeedTasks = () => {
-  const doneTitles = ['查阅文献', '整理桌面', '备份数据', '回复邮件'];
-  const todoTitles = ['设计首页 UI', '阅读《认知觉醒》', '修复 Bug', '准备 PPT', '超市采购', '预约牙医', '洗衣服', '写周报', '规划下周'];
+  // 新手引导：已完成的任务（展示历史记录的样子）
+  const doneTitles = ['🎉 欢迎使用 Horizon Todo', '👀 已完成的任务会在这里'];
+  
+  // 新手引导：待办任务（教学卡片）
+  const todoTitles = [
+    { text: '👈 向左滑动这张卡片来完成它', priority: 'urgent', hasDDL: true },
+    { text: '👇 在下方输入框添加你的新计划', priority: 'focus', hasDDL: false },
+    { text: '📅 点击日历图标设置截止时间', priority: 'normal', hasDDL: true },
+    { text: '🎨 点击下方标签切换任务优先级', priority: 'focus', hasDDL: false },
+  ];
   
   // 生成数据：Done 在前，Todo 在后
   const dones = doneTitles.map((text, i) => ({
@@ -79,16 +87,18 @@ const createSeedTasks = () => {
     completedAt: Date.now() - (100000 + i * 1000), // 添加完成时间用于排序
     jitter: createJitter(),
     priority: 'normal',
-    deadline: null, // Done 任务一般不显示 ddl 了，或者显示当时的 ddl
+    deadline: null, 
   }));
-  const todos = todoTitles.map((text, i) => ({
+
+  const todos = todoTitles.map((item, i) => ({
     id: generateId(), 
-    text, 
+    text: item.text, 
     status: 'todo', 
     createdAt: Date.now() - i * 1000, 
     jitter: createJitter(),
-    priority: i % 3 === 0 ? 'urgent' : i % 2 === 0 ? 'focus' : 'normal', // 随机分配演示用
-    deadline: i % 2 === 0 ? Date.now() + (i + 1) * 3600000 : null, // 部分任务带 DDL 演示
+    priority: item.priority,
+    // 演示 DDL：有的设置在今天，有的设置在明天
+    deadline: item.hasDDL ? Date.now() + (i + 1) * 3600000 * 24 : null, 
   }));
 
   return [...dones, ...todos];
@@ -229,7 +239,7 @@ const SectorFinal = () => {
     <div className="relative w-full h-screen bg-[#F2F0E9] overflow-hidden flex flex-col items-center font-sans text-stone-700">
       
       <div className="absolute top-10 z-10 text-center opacity-40 select-none">
-        <h1 className="text-sm font-bold tracking-[0.4em] uppercase">Sector Grid</h1>
+        <h1 className="text-sm font-bold tracking-[0.4em] uppercase">horizon-todo</h1>
       </div>
 
       {/* --- 扇形容器 --- */}
