@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Urgent Orbit (Rose) -->
+  <path d="M8 32 A24 24 0 0 1 56 32" stroke="#f43f5e" stroke-width="6" stroke-linecap="round" />
+  
+  <!-- Focus Orbit (Blue) -->
+  <path d="M16 32 A16 16 0 0 1 48 32" stroke="#3b82f6" stroke-width="6" stroke-linecap="round" />
+  
+  <!-- Normal Orbit (Orange) -->
+  <path d="M24 32 A8 8 0 0 1 40 32" stroke="#fb923c" stroke-width="6" stroke-linecap="round" />
+</svg>
