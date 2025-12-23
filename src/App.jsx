@@ -124,12 +124,29 @@ const SectorFinal = () => {
   const [inputPriority, setInputPriority] = useState('normal');
   const [inputDeadline, setInputDeadline] = useState(''); // 存储 datetime-local 字符串
   const [showResetConfirm, setShowResetConfirm] = useState(false); // 控制重置确认弹窗
+  const [layoutScale, setLayoutScale] = useState(1); // 动态缩放比例
   const dateInputRef = useRef(null);
 
   // 监听 tasks 变化，自动同步到 LocalStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
   }, [tasks]);
+
+  // 监听窗口大小变化，动态计算缩放比例
+  useEffect(() => {
+    const handleResize = () => {
+      // 基准高度 900px (常见笔记本高度减去浏览器栏)
+      // 设置最小缩放 0.8，最大 1.5，避免极端情况
+      const scale = Math.min(Math.max(window.innerHeight / 900, 0.8), 1.5);
+      setLayoutScale(scale);
+    };
+    
+    // 初始化执行一次
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // 分离数据并排序
   // Done: 按完成时间倒序 (最近完成的在最前面/最中心)
@@ -275,7 +292,15 @@ const SectorFinal = () => {
 
       {/* --- 扇形容器 --- */}
       {/* 这里的 bottom 决定了圆心的位置，越往下圆心越远，扇形越平 */}
-      <div className="absolute w-full flex justify-center pointer-events-none" style={{ bottom: '-180px' }}>
+      {/* 应用动态缩放：transformOrigin 设为底部中心，保证缩放后依然贴底 */}
+      <div 
+        className="absolute w-full flex justify-center pointer-events-none transition-transform duration-300 ease-out" 
+        style={{ 
+            bottom: '-180px',
+            transform: `scale(${layoutScale})`,
+            transformOrigin: 'center bottom'
+        }}
+      >
         <div className="relative" style={{ width: 0, height: 0 }}>
             <AnimatePresence mode='popLayout'>
             {[...dones, ...todos].map((task) => {
