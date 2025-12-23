@@ -1,16 +1,72 @@
-# React + Vite
+<p align="center">
+  <img src="https://capsule-render.vercel.app/api?type=waving&color=f5f5f0&height=250&section=header&text=HORIZON%20TODO&fontSize=70&fontColor=333" />
+</p>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+<p align="center">
+  <ins><b>A minimalist to-do list pursuing the ultimate visual experience.</b></ins>
+</p>
 
-Currently, two official plugins are available:
+<p align="center">
+  <b>English</b> | <a href="./README_CN.md">中文</a>
+</p>
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+<p align="center">
+  <!-- Replace with your actual Vercel link -->
+  <a href="https://horizon-todo.vercel.app">
+    <img src="https://img.shields.io/badge/Live%20Demo-Vercel-black?style=for-the-badge&logo=vercel" />
+  </a>
+  <img src="https://img.shields.io/badge/Status-Active-success?style=for-the-badge" />
+</p>
 
-## React Compiler
+<p align="center">
+  🔗 <b>Live Demo:</b> <a href="https://horizon-todo.vercel.app/" target="_blank">https://horizon-todo.vercel.app/</a>
+</p>
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the ESLint configuration
+## 📸 Visual Preview
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+<p align="center">
+  <img src="public/web.png" width="90%" style="border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1);" alt="Horizon Todo UI" />
+</p>
+
+> **Design Philosophy:** Breaking free from traditional lists, redefining task management with a dynamic card layout (Sector Grid).
+
+---
+
+## ✨ Core Features
+
+- 🧩 **Sector Grid Layout**: Breaking conventions, scattering tasks like stars on a canvas.
+- 🌈 **Priority Color Scheme**: `Urgent`, `Focus`, and `Normal` - three distinct visual tiers.
+- 🍃 **Minimalist Interaction**: Clean input design, focusing purely on "recording".
+- ☁️ **Continuous Integration**: Automated deployment via Vercel, updates on commit.
+
+---
+
+## 🛠 Tech Stack
+
+<p align="left">
+  <img src="https://skillicons.dev/icons?i=react,js,tailwindcss,vercel,vite,framer" />
+</p>
+
+---
+
+## 🚀 Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/CQUPT-CZL/horizon-todo.git
+
+# Navigate to directory
+cd horizon-todo
+
+# Install dependencies
+npm install
+
+# Run locally
+npm run dev
+```
+
+## 📄 License
+
+MIT License
