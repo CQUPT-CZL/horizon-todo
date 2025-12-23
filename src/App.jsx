@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar, Github } from 'lucide-react';
 
@@ -152,15 +152,15 @@ const SectorFinal = () => {
 
   // 分离数据并排序
   // Done: 按完成时间倒序 (最近完成的在最前面/最中心)
-  const dones = tasks
+  const dones = useMemo(() => tasks
     .filter(t => t.status === 'done')
     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
-    .slice(0, ROWS * MAX_DONE_COLUMNS); // 限制显示数量，挤不下就不展示
+    .slice(0, ROWS * MAX_DONE_COLUMNS), [tasks]); // 限制显示数量，挤不下就不展示
 
   // Todo: 按创建时间顺序 (先创建的在最前面)
-  const todos = tasks
+  const todos = useMemo(() => tasks
     .filter(t => t.status === 'todo')
-    .sort((a, b) => a.createdAt - b.createdAt);
+    .sort((a, b) => a.createdAt - b.createdAt), [tasks]);
 
   // --- 核心布局算法：统一坐标系 ---
   // 我们把所有卡片看作在一个巨大的 Grid 里
@@ -327,7 +327,6 @@ const SectorFinal = () => {
 
                 return (
                 <motion.div
-                    layoutId={task.id}
                     key={task.id}
                     
                     // --- 拖拽设置 (在外层) ---
