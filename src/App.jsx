@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar, Github } from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar, Github, Type } from 'lucide-react';
 
 // --- 核心配置 (根据你的反馈调优) ---
 const ROWS = 3;             // 3行轨道，保证厚度
@@ -125,6 +125,7 @@ const SectorFinal = () => {
   const [inputDeadline, setInputDeadline] = useState(''); // 存储 datetime-local 字符串
   const [showResetConfirm, setShowResetConfirm] = useState(false); // 控制重置确认弹窗
   const [layoutScale, setLayoutScale] = useState(1); // 动态缩放比例
+  const [isLargeFont, setIsLargeFont] = useState(false); // 字体大小开关
   const dateInputRef = useRef(null);
 
   // 监听 tasks 变化，自动同步到 LocalStorage
@@ -274,6 +275,13 @@ const SectorFinal = () => {
 
       {/* --- 右上角功能区 --- */}
       <div className="absolute top-6 right-6 z-50 flex items-center gap-4">
+        <button 
+          onClick={() => setIsLargeFont(!isLargeFont)}
+          className={`transition-colors ${isLargeFont ? 'text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}
+          title="Toggle Font Size"
+        >
+          <Type size={20} />
+        </button>
         <a 
           href="https://github.com/CQUPT-CZL/horizon-todo" 
           target="_blank" 
@@ -403,7 +411,11 @@ const SectorFinal = () => {
 
                         {/* 任务文本 */}
                         <div className="flex-1 flex flex-col justify-center">
-                            <p className={`text-[15px] font-bold leading-snug break-words ${isTodo ? 'text-stone-800' : 'text-stone-400 line-through'}`}>
+                            <p className={`
+                                font-bold leading-snug break-words transition-all duration-300
+                                ${isLargeFont ? 'text-[20px]' : 'text-[15px]'}
+                                ${isTodo ? 'text-stone-800' : 'text-stone-400 line-through'}
+                            `}>
                                 {task.text}
                             </p>
                             
