@@ -5,12 +5,12 @@ import { Plus, Trash2, ArrowLeft, RotateCcw, Clock, Calendar, Github, Type } fro
 // --- 核心配置 (根据你的反馈调优) ---
 const ROWS = 3;             // 3行轨道，保证厚度
 const ROW_HEIGHT = 280;     // 行高 (大幅增加，彻底解决纵向堆叠)
-const ARC_SPACING = 240;    // 弧长间距 (卡片宽度+间隙)，用于动态计算角度
+const ARC_SPACING = 280;    // 弧长间距 (卡片宽度+间隙)，用于动态计算角度
 const BASE_RADIUS = 520;    // 内圈半径，拉大半径让扇形更平缓，空间更大
 const MAX_DONE_COLUMNS = 6; // 最多显示几列已完成任务，防止溢出屏幕或重叠
 
-const CARD_W = 180;
-const CARD_H = 220;
+const CARD_W = 220;
+const CARD_H = 260;
 
 const PRIORITIES = {
   urgent: { 
@@ -387,7 +387,7 @@ const SectorFinal = () => {
                     >
                     <div 
                         className={`
-                            relative w-[180px] h-[220px] rounded-2xl p-6 flex flex-col justify-between 
+                            relative w-[220px] h-[260px] rounded-2xl p-6 flex flex-col justify-between 
                             transition-all duration-300 border backdrop-blur-sm select-none
                             ${isTodo 
                                 ? `${priorityConfig.color} shadow-lg shadow-stone-200/50` 
@@ -413,7 +413,7 @@ const SectorFinal = () => {
                         <div className="flex-1 flex flex-col justify-center">
                             <p className={`
                                 font-bold leading-snug break-words transition-all duration-300
-                                ${isLargeFont ? 'text-[20px]' : 'text-[15px]'}
+                                ${isLargeFont ? 'text-[22px]' : 'text-[17px]'}
                                 ${isTodo ? 'text-stone-800' : 'text-stone-400 line-through'}
                             `}>
                                 {task.text}
