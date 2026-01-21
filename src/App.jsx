@@ -234,6 +234,20 @@ const SectorFinal = () => {
     });
   };
 
+  const toggleTaskPriority = (id, e) => {
+    e && e.stopPropagation();
+    const priorityOrder = ['normal', 'focus', 'urgent'];
+    setTasks(prev => prev.map(t => {
+        if (t.id === id) {
+            const currentPriority = t.priority || 'normal';
+            const currentIndex = priorityOrder.indexOf(currentPriority);
+            const nextIndex = (currentIndex + 1) % priorityOrder.length;
+            return { ...t, priority: priorityOrder[nextIndex] };
+        }
+        return t;
+    }));
+  };
+
   const addTask = (e) => {
     e.preventDefault();
     if (!inputValue.trim()) return;
@@ -397,7 +411,12 @@ const SectorFinal = () => {
                     >
                         {/* 顶部按钮区 */}
                         <div className="flex justify-between items-start">
-                            <div className={`w-2.5 h-2.5 rounded-full ${isTodo ? priorityConfig.dot : 'bg-stone-300'}`} />
+                            <div 
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => isTodo && toggleTaskPriority(task.id, e)}
+                                className={`w-4 h-4 rounded-full transition-transform hover:scale-125 ${isTodo ? `${priorityConfig.dot} cursor-pointer` : 'bg-stone-300'}`}
+                                title={isTodo ? "Click to change priority" : ""}
+                            />
                             {isTodo && (
                                 <button 
                                     onPointerDown={(e) => e.stopPropagation()}
